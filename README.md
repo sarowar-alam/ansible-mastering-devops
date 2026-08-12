@@ -198,6 +198,27 @@ ansible-playbook -i inventories/aws_ec2.yml playbooks/site.yml --tags docker
 ansible-playbook -i inventories/aws_ec2.yml playbooks/patch.yml -e reboot_if_required=true
 ```
 
+## Troubleshooting
+
+- **`[ERROR]: Could not load 'yaml' callback plugin.`** - `ansible.cfg`'s
+  `stdout_callback` was originally set to `yaml`, which requires the
+  `community.general` collection (not a dependency of this repo). Already
+  fixed in `ansible/ansible.cfg` (`stdout_callback = ansible.builtin.default`).
+  If you still see this, `git pull` to get the latest `ansible.cfg`.
+- **`AccessDeniedException` on `ssm:DescribeInstanceInformation` /
+  `ssm:StartSession`** - the `SSM` role is missing the SSM control-plane
+  permissions. See [Required IAM permissions](#required-iam-permissions-for-ansible-ssm).
+- **`Failed to get bucket region: ... (404) ... HeadBucket ... Not Found`**
+  when running `test-ssm.yml` - `ansible_aws_ssm_bucket_name` in
+  `ansible/group_vars/private_servers.yml` is still the `CHANGE-ME-...`
+  placeholder, or the bucket doesn't exist/isn't permitted yet. See the
+  ACTION REQUIRED box at the top.
+- **A config/script edit made with `sed`/manual patching on the controller
+  doesn't seem to apply** - check for CRLF line endings
+  (`cat -A file | head`, look for `^M` at line ends). This repo enforces LF
+  via `.gitattributes`; if you're on an older clone made before that was
+  added, `git pull` and re-clone/`git checkout -- .` to get clean LF files.
+
 ## How Ansible connects to the private servers
 
 - **Dynamic inventory** (`ansible/inventories/aws_ec2.yml`, `amazon.aws.aws_ec2`
