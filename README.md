@@ -13,12 +13,20 @@ instances entirely through **AWS Systems Manager (SSM)** - no SSH keys.
 > `terraform-state-bmi-ostaddevops` bucket, which is unrelated Terraform
 > state for other projects and must not be reused for Ansible file transfer.
 >
+> **Also confirmed via live testing:** the `SSM` role only lets an instance
+> *be managed* (via `AmazonSSMManagedInstanceCore`) - it needs additional
+> `ssm:DescribeInstanceInformation`, `ssm:StartSession`, `ssm:TerminateSession`,
+> `ssm:ResumeSession`, `ssm:DescribeSessions`, `ssm:GetConnectionStatus`
+> permissions for the controller to manage the private instances. Without
+> these, `scripts/verify-ansible-controller.sh` fails with `AccessDeniedException`.
+>
 > **Nothing was modified.** This repo never creates/edits IAM. To unblock
 > `amazon.aws.aws_ssm`, you (or whoever owns IAM) need to:
 > 1. Create (or choose) a dedicated S3 bucket for Ansible SSM file transfer,
 >    e.g. `my-org-ansible-ssm-transfer`.
-> 2. Attach a policy to the `SSM` role granting it access to that bucket -
->    see [Required IAM permissions](#required-iam-permissions-for-ansible-ssm) below.
+> 2. Attach a policy to the `SSM` role granting it both the S3 access and
+>    the SSM control-plane actions above - see
+>    [Required IAM permissions](#required-iam-permissions-for-ansible-ssm) below.
 > 3. Set that bucket name in `ansible/group_vars/private_servers.yml`
 >    (`ansible_aws_ssm_bucket_name`), replacing the `CHANGE-ME-...` placeholder.
 
@@ -211,8 +219,11 @@ ansible-playbook -i inventories/aws_ec2.yml playbooks/patch.yml -e reboot_if_req
 
 ## Required IAM permissions for Ansible SSM
 
-The `amazon.aws.aws_ssm` connection plugin transfers Ansible module code via
-S3. The `SSM` role needs a policy like this, scoped to your chosen bucket
+The `amazon.aws.aws_ssm` connection plugin needs two things the `SSM` role
+doesn't currently have: S3 access for module transfer, and SSM control-plane
+permissions to manage other instances (confirmed missing via live testing -
+`AmazonSSMManagedInstanceCore` alone only lets an instance be managed, not
+manage others). Attach a policy like this, scoped to your chosen bucket
 (replace `YOUR-BUCKET`):
 
 ```json
@@ -232,6 +243,18 @@ S3. The `SSM` role needs a policy like this, scoped to your chosen bucket
         "arn:aws:s3:::YOUR-BUCKET",
         "arn:aws:s3:::YOUR-BUCKET/*"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:DescribeInstanceInformation",
+        "ssm:StartSession",
+        "ssm:TerminateSession",
+        "ssm:ResumeSession",
+        "ssm:DescribeSessions",
+        "ssm:GetConnectionStatus"
+      ],
+      "Resource": "*"
     }
   ]
 }
