@@ -1,0 +1,17 @@
+---
+common_packages:
+  - git
+  - curl
+  - wget
+  - unzip
+  - zip
+  - jq
+  - tree
+  - vim
+  - nano
+  - htop
+  - tmux
+  - ca-certificates
+  - gnupg
+  - python3
+  - python3-pip

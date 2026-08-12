@@ -53,6 +53,11 @@ output "private_instance_private_ips" {
   value       = [for k, v in module.ec2 : v.private_ip if k != local.public_instance_key]
 }
 
+output "private_instance_names" {
+  description = "Name tag values of the two private EC2 instances, in the same order as private_instance_ids/private_instance_private_ips."
+  value       = [for k, v in module.ec2 : k if k != local.public_instance_key]
+}
+
 output "security_group_id" {
   description = "ID of the shared EC2 security group."
   value       = module.security_group.security_group_id

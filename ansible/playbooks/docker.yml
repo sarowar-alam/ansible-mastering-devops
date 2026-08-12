@@ -1,0 +1,11 @@
+---
+- name: Install and configure Docker on private servers
+  hosts: private_servers
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/private_servers.yml
+
+  roles:
+    - role: docker
+      tags: [docker]

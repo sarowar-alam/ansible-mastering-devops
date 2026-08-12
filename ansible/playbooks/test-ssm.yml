@@ -1,0 +1,30 @@
+---
+# First test to run after Terraform apply + controller bootstrap. Confirms
+# dynamic inventory discovery, the amazon.aws.aws_ssm connection, Python
+# availability, and basic fact gathering - before any patch/config playbook
+# is allowed to run (see scripts/run-ansible.sh, which gates on this play).
+- name: Verify SSM connectivity to private servers
+  hosts: private_servers
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/private_servers.yml
+
+  tasks:
+    - name: Ping target over the aws_ssm connection
+      ansible.builtin.ping:
+
+    - name: Show OS release detected on the target
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} -> {{ ansible_distribution }}
+          {{ ansible_distribution_version }} ({{ ansible_distribution_release }})
+
+    - name: Retrieve the remote hostname
+      ansible.builtin.command: hostname
+      register: remote_hostname
+      changed_when: false
+
+    - name: Report remote hostname
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: remote hostname reported as {{ remote_hostname.stdout }}"

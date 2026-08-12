@@ -1,0 +1,8 @@
+---
+# Common variables for the whole Ansible environment. Loaded explicitly via
+# vars_files in the playbooks (see playbooks/*.yml for why).
+project_name: terraform-aws-infrastructure
+environment_name: dev
+aws_region: us-west-2
+
+ansible_python_interpreter: /usr/bin/python3

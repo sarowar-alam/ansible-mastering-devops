@@ -1,0 +1,18 @@
+# Ansible
+*.retry
+ansible/collections/
+.vault_pass
+*.vault_pass
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+
+# Note: terraform-aws-vpc-ec2/ has its own .gitignore for Terraform-specific
+# ignores (.terraform/, *.tfstate, real *.tfvars, etc.) - not duplicated here.

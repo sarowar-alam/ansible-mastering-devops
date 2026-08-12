@@ -42,6 +42,10 @@ output "private_instance_private_ips" {
   value = module.dev.private_instance_private_ips
 }
 
+output "private_instance_names" {
+  value = module.dev.private_instance_names
+}
+
 output "security_group_id" {
   value = module.dev.security_group_id
 }

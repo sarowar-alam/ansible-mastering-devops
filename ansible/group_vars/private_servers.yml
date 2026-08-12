@@ -1,0 +1,16 @@
+---
+# SSM connection settings required by the amazon.aws.aws_ssm connection
+# plugin. ansible_aws_ssm_instance_id is supplied per-host by the dynamic
+# inventory (../inventories/aws_ec2.yml) - it is NOT set here.
+ansible_connection: amazon.aws.aws_ssm
+ansible_aws_ssm_region: "{{ aws_region }}"
+
+# REQUIRED, and deliberately a placeholder: name of an S3 bucket that the
+# controller's IAM role can read/write, used by the aws_ssm connection
+# plugin to transfer Ansible module code to/from the target. It must be
+# created and permitted separately - see README.md "S3 bucket required for
+# Ansible SSM file transfer". Override via -e ansible_aws_ssm_bucket_name=...
+# or edit this file locally; never commit a real bucket name if this repo
+# is public and the name is sensitive (bucket names are usually not
+# sensitive, but keep this placeholder in version control regardless).
+ansible_aws_ssm_bucket_name: "CHANGE-ME-ansible-ssm-transfer-bucket"

@@ -1,0 +1,6 @@
+---
+# Default is false - never automatically reboot servers. Override with
+# -e reboot_if_required=true when you want patch.yml to reboot hosts that
+# report a pending reboot.
+reboot_if_required: false
+reboot_timeout: 600

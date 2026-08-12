@@ -1,0 +1,8 @@
+---
+# Install with: ansible-galaxy collection install -r requirements.yml
+# Verify with:  ansible-galaxy collection list
+collections:
+  - name: amazon.aws
+    version: ">=7.0.0" # provides the aws_ec2 inventory plugin and the
+    # current amazon.aws.aws_ssm connection plugin (the old
+    # community.aws.aws_ssm name is not used here).

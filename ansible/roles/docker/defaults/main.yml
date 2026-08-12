@@ -1,0 +1,18 @@
+---
+# Suite name to use for the Docker apt repository. Defaults to the
+# running host's own release codename (e.g. "resolute" for Ubuntu 26.04).
+# Override (e.g. docker_apt_suite: noble) if Docker's repo does not yet
+# publish packages for a brand-new Ubuntu release.
+docker_apt_suite: "{{ ansible_distribution_release }}"
+
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# Adding a user to the "docker" group grants them root-equivalent access to
+# the host (the Docker daemon runs as root and the socket is unauthenticated
+# for group members) - see roles/docker/README below for details.
+docker_add_ubuntu_user_to_group: true

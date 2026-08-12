@@ -1,0 +1,40 @@
+---
+# Dynamic AWS EC2 inventory - discovers instances by tag. Never hard-codes
+# private IPs or instance IDs (both change on instance replacement).
+# Requires: the amazon.aws collection (../requirements.yml) and AWS
+# credentials available to whoever runs Ansible - on the controller this is
+# the EC2 instance profile (SSM), never static keys.
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-west-2
+
+filters:
+  instance-state-name: running
+  # Matches the default project_name/environment used by the Terraform
+  # module in ../../terraform-aws-vpc-ec2/variables.tf. Update these if you
+  # deployed Terraform with different values.
+  "tag:Project": "terraform-aws-infrastructure"
+  "tag:Environment": "dev"
+
+# Human-readable inventory hostnames from the Terraform "Name" tag
+# (dev-public-01, dev-private-01, dev-private-02) instead of IPs/instance IDs.
+hostnames:
+  - tag:Name
+
+# Explicit, readable groups built from the Terraform "Role" tag. The
+# controller (Role=public) is intentionally kept OUT of private_servers so
+# the patch/utilities/docker/site playbooks never accidentally target it.
+groups:
+  private_servers: "tags.Role is defined and tags.Role == 'private'"
+  controller: "tags.Role is defined and tags.Role == 'public'"
+
+# Per-host fact required by amazon.aws.aws_ssm (the plugin connects by
+# instance ID, a private IP is not sufficient). The rest of the SSM
+# connection settings (ansible_connection, ansible_aws_ssm_region,
+# ansible_aws_ssm_bucket_name) live in ../group_vars/private_servers.yml,
+# loaded explicitly via vars_files in the playbooks - group_vars/ here is a
+# sibling of inventories/ and playbooks/, not adjacent to either, so
+# Ansible's automatic group_vars discovery would not pick it up.
+compose:
+  ansible_aws_ssm_instance_id: instance_id
