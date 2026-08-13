@@ -305,12 +305,27 @@ once it exists and is permitted.
 
 ## Changes made to the existing Terraform
 
-Only additive, non-breaking output changes (no resources added/changed/
-removed - confirmed with `terraform plan`):
+Additive changes only (nothing existing changed/removed - confirmed with
+`terraform plan`):
 
 - Added `private_instance_names` output (Name tag of each private instance,
   in the same order as `private_instance_ids`/`private_instance_private_ips`),
   in both the root module and `environments/dev`.
+- Added an `aws_ssm_document.ansible_run_as_root` resource (a custom SSM
+  Session document with Session Manager's native "Run As" enabled,
+  `runAsDefaultUser = "root"`), plus an `ansible_ssm_document_name` output,
+  in both the root module and `environments/dev`. **Why:** the
+  `amazon.aws.aws_ssm` Ansible connection plugin does not implement
+  `become`/sudo at all (confirmed upstream limitation -
+  [ansible-collections/amazon.aws#2640](https://github.com/ansible-collections/amazon.aws/issues/2640)) -
+  any play with `become: true` hangs until the connection times out,
+  regardless of sudoers config. Referencing this document via
+  `ansible_aws_ssm_document` (see `ansible/group_vars/private_servers.yml`)
+  makes the whole SSM session run as root instead, so playbooks no longer
+  use `become` anywhere.
+  **You must run `terraform apply`** for this new document to exist before
+  `become`-free playbooks (`utilities.yml`, `patch.yml`, `docker.yml`,
+  `site.yml`) will work.
 
 Nothing else in `terraform-aws-vpc-ec2/` was modified. See
 [terraform-aws-vpc-ec2/README.md](terraform-aws-vpc-ec2/README.md) for full

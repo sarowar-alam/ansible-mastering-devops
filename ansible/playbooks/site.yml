@@ -7,7 +7,6 @@
 #   ansible-playbook playbooks/site.yml --tags docker
 - name: Configure private servers (patch, utilities, docker)
   hosts: private_servers
-  become: true
   vars_files:
     - ../group_vars/all.yml
     - ../group_vars/private_servers.yml
@@ -22,7 +21,6 @@
 
 - name: Verify final state of private servers
   hosts: private_servers
-  become: true
   vars_files:
     - ../group_vars/all.yml
     - ../group_vars/private_servers.yml

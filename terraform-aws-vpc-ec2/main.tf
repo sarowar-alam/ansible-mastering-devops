@@ -83,3 +83,27 @@ module "ec2" {
 
   depends_on = [module.vpc]
 }
+
+# Custom SSM Session document that connects as root via Session Manager's
+# native "Run As" support. Required because the amazon.aws.aws_ssm Ansible
+# connection plugin does not implement `become`/sudo (confirmed upstream
+# limitation: ansible-collections/amazon.aws#2640) - `become: true` hangs
+# indefinitely regardless of sudoers config. Referencing this document via
+# ansible_aws_ssm_document lets playbooks drop become entirely.
+resource "aws_ssm_document" "ansible_run_as_root" {
+  name            = "${local.name_prefix}-ansible-run-as-root"
+  document_type   = "Session"
+  document_format = "JSON"
+
+  content = jsonencode({
+    schemaVersion = "1.0"
+    description   = "Run Ansible SSM sessions as root (works around amazon.aws.aws_ssm not supporting become)."
+    sessionType   = "Standard_Stream"
+    inputs = {
+      runAsEnabled     = true
+      runAsDefaultUser = "root"
+    }
+  })
+
+  tags = local.common_tags
+}

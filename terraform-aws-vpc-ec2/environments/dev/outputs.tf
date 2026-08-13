@@ -53,3 +53,7 @@ output "security_group_id" {
 output "ubuntu_ami_id" {
   value = module.dev.ubuntu_ami_id
 }
+
+output "ansible_ssm_document_name" {
+  value = module.dev.ansible_ssm_document_name
+}
