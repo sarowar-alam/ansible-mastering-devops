@@ -1,8 +1,0 @@
----
-- name: Install and configure nginx on all SSM-managed nodes
-  hosts: all
-  become: true
-  gather_facts: true
-
-  roles:
-    - nginx

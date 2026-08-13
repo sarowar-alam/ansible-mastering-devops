@@ -1,9 +1,0 @@
-<!DOCTYPE html>
-<html>
-<head><title>{{ inventory_hostname }}</title></head>
-<body>
-  <h1>{{ inventory_hostname }}</h1>
-  <p>Managed by Ansible over AWS Systems Manager.</p>
-  <p>Private IP: {{ ansible_default_ipv4.address | default('unknown') }}</p>
-</body>
-</html>
