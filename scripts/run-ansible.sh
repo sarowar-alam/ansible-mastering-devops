@@ -82,9 +82,10 @@ if [[ -z "$INSTANCE_IDS" ]]; then
 fi
 log "Targets: $INSTANCE_IDS"
 
-PARAMS_FILE="$(mktemp)"
-trap 'rm -f "$PARAMS_FILE"' EXIT
-cat > "$PARAMS_FILE" <<EOF
+# Passed inline (not via file://) - on Git Bash, a mktemp path like /tmp/xxx
+# is an MSYS-only path that the native aws.exe cannot resolve, so a file://
+# reference to it fails with "No such file or directory".
+PARAMS_JSON=$(cat <<EOF
 {
   "SourceType": ["GitHub"],
   "SourceInfo": ["{\"owner\":\"$GITHUB_OWNER\",\"repository\":\"$GITHUB_REPO\",\"path\":\"ansible\",\"getOptions\":\"branch:$GITHUB_BRANCH\"}"],
@@ -94,6 +95,7 @@ cat > "$PARAMS_FILE" <<EOF
   "Verbose": ["-v"]
 }
 EOF
+)
 
 TARGETS_ARG="Key=InstanceIds,Values=$(echo "$INSTANCE_IDS" | tr '\t' ',' | tr ' ' ',')"
 
@@ -101,7 +103,7 @@ log "2/4 Sending AWS-ApplyAnsiblePlaybooks command (playbook: ${PLAYBOOKS[$ACTIO
 COMMAND_ID="$(aws ssm send-command "${AWS_ARGS[@]}" \
   --document-name AWS-ApplyAnsiblePlaybooks \
   --targets "$TARGETS_ARG" \
-  --parameters "file://$PARAMS_FILE" \
+  --parameters "$PARAMS_JSON" \
   --query 'Command.CommandId' --output text)"
 log "CommandId: $COMMAND_ID"
 
