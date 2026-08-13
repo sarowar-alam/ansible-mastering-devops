@@ -14,8 +14,8 @@ sudo apt-get install -y python3 python3-pip python3-venv git unzip curl
 
 ARCH="$(uname -m)"
 case "$ARCH" in
-  x86_64) AWSCLI_ARCH="x86_64" ;;
-  aarch64) AWSCLI_ARCH="aarch64" ;;
+  x86_64) AWSCLI_ARCH="x86_64"; SSM_PLUGIN_ARCH="ubuntu_64bit" ;;
+  aarch64) AWSCLI_ARCH="aarch64"; SSM_PLUGIN_ARCH="ubuntu_arm64" ;;
   *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;;
 esac
 
@@ -33,7 +33,7 @@ fi
 if [ ! -x /usr/local/bin/session-manager-plugin ]; then
   echo "==> Installing session-manager-plugin"
   TMPDIR="$(mktemp -d)"
-  curl -sSL "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_${AWSCLI_ARCH}/session-manager-plugin.deb" \
+  curl -sSL "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/${SSM_PLUGIN_ARCH}/session-manager-plugin.deb" \
     -o "${TMPDIR}/session-manager-plugin.deb"
   sudo dpkg -i "${TMPDIR}/session-manager-plugin.deb"
   rm -rf "${TMPDIR}"
