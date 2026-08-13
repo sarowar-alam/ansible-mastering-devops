@@ -9,6 +9,12 @@ plugin: amazon.aws.aws_ec2
 regions:
   - ap-south-1
 
+# Prefixes every AWS-derived host variable (e.g. tags -> aws_tags,
+# instance_id -> aws_instance_id) so the plugin's own 'tags' variable never
+# collides with Ansible's reserved 'tags' keyword - avoids the
+# "Found variable using reserved name 'tags'" warning entirely.
+hostvars_prefix: "aws_"
+
 filters:
   instance-state-name: running
   # Matches the default project_name/environment used by the Terraform
@@ -25,11 +31,10 @@ hostnames:
 # Explicit, readable groups built from the Terraform "Role" tag. The
 # controller (Role=public) is intentionally kept OUT of private_servers so
 # the patch/utilities/docker/site playbooks never accidentally target it.
-# Uses ec2_tags (not the deprecated 'tags' host variable, which collides
-# with Ansible's reserved 'tags' keyword and is removed after 2026-12-01).
+# Uses aws_ec2_tags (hostvars_prefix above renames ec2_tags -> aws_ec2_tags).
 groups:
-  private_servers: "ec2_tags.Role is defined and ec2_tags.Role == 'private'"
-  controller: "ec2_tags.Role is defined and ec2_tags.Role == 'public'"
+  private_servers: "aws_ec2_tags.Role is defined and aws_ec2_tags.Role == 'private'"
+  controller: "aws_ec2_tags.Role is defined and aws_ec2_tags.Role == 'public'"
 
 # Per-host fact required by amazon.aws.aws_ssm (the plugin connects by
 # instance ID, a private IP is not sufficient). The rest of the SSM
@@ -39,4 +44,4 @@ groups:
 # sibling of inventories/ and playbooks/, not adjacent to either, so
 # Ansible's automatic group_vars discovery would not pick it up.
 compose:
-  ansible_aws_ssm_instance_id: instance_id
+  ansible_aws_ssm_instance_id: aws_instance_id
