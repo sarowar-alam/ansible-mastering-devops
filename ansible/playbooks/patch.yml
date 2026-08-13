@@ -1,9 +1,12 @@
 ---
+# Runs via AWS Systems Manager Run Command (AWS-ApplyAnsiblePlaybooks), which
+# executes `ansible-playbook -i "localhost," -c local` AS ROOT directly on
+# the target - no connection plugin, no become needed. See
+# scripts/run-ansible.sh and README.md "How playbooks run".
 - name: Patch operating system packages on private servers
-  hosts: private_servers
+  hosts: all
   vars_files:
     - ../group_vars/all.yml
-    - ../group_vars/private_servers.yml
 
   roles:
     - role: patch

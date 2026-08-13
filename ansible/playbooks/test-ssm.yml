@@ -1,17 +1,17 @@
 ---
-# First test to run after Terraform apply + controller bootstrap. Confirms
-# dynamic inventory discovery, the amazon.aws.aws_ssm connection, Python
-# availability, and basic fact gathering - before any patch/config playbook
-# is allowed to run (see scripts/run-ansible.sh, which gates on this play).
-- name: Verify SSM connectivity to private servers
-  hosts: private_servers
+# Smoke test run via AWS Systems Manager Run Command
+# (AWS-ApplyAnsiblePlaybooks), which executes `ansible-playbook -i
+# "localhost," -c local` AS ROOT directly on the target - confirms Run
+# Command reachability and basic fact gathering before any patch/config
+# playbook is run (see scripts/run-ansible.sh).
+- name: Verify Run Command reachability to private servers
+  hosts: all
   gather_facts: true
   vars_files:
     - ../group_vars/all.yml
-    - ../group_vars/private_servers.yml
 
   tasks:
-    - name: Ping target over the aws_ssm connection
+    - name: Ping the target
       ansible.builtin.ping:
 
     - name: Show OS release detected on the target

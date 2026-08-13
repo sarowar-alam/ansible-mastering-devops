@@ -67,8 +67,3 @@ output "ubuntu_ami_id" {
   description = "AMI ID resolved for the Ubuntu 26.04 LTS image actually used."
   value       = data.aws_ami.ubuntu.id
 }
-
-output "ansible_ssm_document_name" {
-  description = "Name of the custom SSM Session document that runs commands as root for Ansible (works around amazon.aws.aws_ssm's lack of become support)."
-  value       = aws_ssm_document.ansible_run_as_root.name
-}

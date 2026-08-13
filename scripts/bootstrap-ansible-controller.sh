@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# LEGACY/OPTIONAL: only needed if you want to use the connection-plugin path
+# (playbooks/test-ssm.yml) from a dedicated controller. The primary workflow
+# (scripts/run-ansible.sh) uses SSM Run Command and needs none of this - see
+# README.md "How playbooks run".
+#
 # Converts a clean Ubuntu 26.04 EC2 instance (dev-public-01) into an Ansible
 # controller: basic utilities, AWS CLI v2, the SSM Session Manager plugin,
 # and Ansible (in a dedicated venv) with the required collections.

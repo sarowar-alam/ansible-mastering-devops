@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# LEGACY/OPTIONAL: only needed if you want to use the connection-plugin path
+# (playbooks/test-ssm.yml) from a dedicated controller. The primary workflow
+# (scripts/run-ansible.sh) uses SSM Run Command and needs none of this - see
+# README.md "How playbooks run".
+#
 # Verifies that this host is correctly set up as the Ansible controller.
 # Exits non-zero if any required component is missing.
 set -uo pipefail

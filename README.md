@@ -1,11 +1,35 @@
 # ansible-mastering-devops
 
 Infrastructure (Terraform) + configuration management (Ansible) for a small
-AWS lab: a VPC with one public and two private EC2 instances, where the
-public instance acts as an **Ansible controller** that manages the private
-instances entirely through **AWS Systems Manager (SSM)** - no SSH keys.
+AWS lab: a VPC with one public and two private EC2 instances, configured
+entirely through **AWS Systems Manager (SSM)** - no SSH keys, no bastion.
 
-> ## ⚠ ACTION REQUIRED before Ansible SSM playbooks will work
+> ## How playbooks run (read this first)
+> `patch.yml`, `utilities.yml`, `docker.yml`, and `site.yml` run via **AWS
+> Systems Manager Run Command** (the AWS-owned `AWS-ApplyAnsiblePlaybooks`
+> document, triggered by `scripts/run-ansible.sh`). This pulls this repo's
+> `ansible/` folder straight from GitHub onto each private instance and runs
+> `ansible-playbook -i "localhost," -c local` **locally, as root**.
+>
+> **Why not the `amazon.aws.aws_ssm` connection plugin (controller ->
+> targets)?** It cannot do `become`/sudo at all - this is an open, unfixed
+> upstream bug ([amazon.aws#2640](https://github.com/ansible-collections/amazon.aws/issues/2640)).
+> Session Manager's "Run As" feature can't substitute for it either - the
+> SSM Agent hard-rejects `runAsDefaultUser: root` ("invalid uid and gid").
+> Run Command sidesteps the problem entirely instead of working around it:
+> there's no connection plugin and no `become` in the loop, so it's
+> unaffected by that bug.
+>
+> **Where to run `scripts/run-ansible.sh` from:** anywhere with the
+> `sarowar-ostad` AWS CLI profile configured (your laptop, CI, or the
+> `dev-public-01` controller) - it's a plain `ssm:SendCommand` API call, not
+> a VPC-internal connection. The `dev-public-01` "controller" and the
+> `amazon.aws.aws_ssm` connection plugin still exist, but only for the
+> optional read-only smoke test (`scripts/run-ansible.sh test` /
+> `playbooks/test-ssm.yml`) - see [Legacy: connection-plugin path](#legacy-connection-plugin-path-optional)
+> below.
+
+> ## ⚠ Optional: IAM required for the legacy connection-plugin smoke test
 > The existing `SSM` IAM role/instance profile (used by all 3 EC2 instances)
 > was inspected and **does not have the S3 permissions required by the
 > `amazon.aws.aws_ssm` connection plugin**. Its only S3 access is a
@@ -39,36 +63,33 @@ Terraform
 AWS Infrastructure (VPC, subnets, IGW, NAT, EC2, SSM instance profile)
    |
    v
-Public EC2 (dev-public-01) -- Elastic IP
+Anywhere with AWS CLI (laptop, CI, or dev-public-01) -- aws ssm send-command
    |
    v
-Ansible Controller (Git, AWS CLI, Session Manager plugin, Python, Ansible, amazon.aws)
+AWS Systems Manager Run Command (AWS-ApplyAnsiblePlaybooks)
    |
    v
-AWS Systems Manager (Session Manager + S3 file transfer)
-   |
-   v
-Private EC2s (dev-private-01, dev-private-02) -- no public IP, SSM managed
+Private EC2s (dev-private-01, dev-private-02) -- pulls ansible/ from GitHub,
+runs `ansible-playbook -i "localhost," -c local` locally, as root
 ```
 
 ```
-                         Internet
-                            |
-                     Elastic IP
-                            |
-                            v
-                 +--------------------+
-                 |   dev-public-01    |
-                 | Ansible Controller |
-                 | AWS CLI / Ansible  |
-                 | boto3 / SSM plugin |
-                 +---------+----------+
-                           |
-                           | AWS SSM (Session Manager + S3)
-                           |
-                 +---------+----------+
-                 |                    |
-                 v                    v
+        Your laptop / CI / dev-public-01
+        (aws ssm send-command, any of these)
+                     |
+                     | AWS API (ssm:SendCommand)
+                     v
+        +--------------------------------+
+        |     AWS Systems Manager        |
+        |   AWS-ApplyAnsiblePlaybooks    |
+        +----------------+---------------+
+                          |
+                 downloads ansible/ from
+                 GitHub, runs locally as root
+                          |
+                 +--------+---------+
+                 |                  |
+                 v                  v
         +----------------+   +----------------+
         | dev-private-01 |   | dev-private-02 |
         | Ubuntu 26.04   |   | Ubuntu 26.04   |
@@ -90,14 +111,14 @@ ansible-mastering-devops/
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── requirements.yml
-│   ├── inventories/aws_ec2.yml   # dynamic AWS EC2 inventory (tag-based)
+│   ├── inventories/aws_ec2.yml   # dynamic AWS EC2 inventory (legacy path only)
 │   ├── group_vars/{all,private_servers}.yml
-│   ├── playbooks/{test-ssm,patch,utilities,docker,site}.yml
+│   ├── playbooks/{test-ssm,patch,utilities,docker,site}.yml   # hosts: all - run locally as root via Run Command
 │   └── roles/{common,patch,docker}/
 ├── scripts/
-│   ├── bootstrap-ansible-controller.sh
-│   ├── verify-ansible-controller.sh
-│   └── run-ansible.sh
+│   ├── bootstrap-ansible-controller.sh   # legacy, optional
+│   ├── verify-ansible-controller.sh      # legacy, optional
+│   └── run-ansible.sh                    # primary: triggers SSM Run Command
 ├── README.md
 └── .gitignore
 ```
@@ -106,11 +127,12 @@ ansible-mastering-devops/
 
 - The Terraform infrastructure in `terraform-aws-vpc-ec2/` already applied
   (VPC, 3 EC2 instances, `SSM` instance profile attached).
-- AWS CLI v2 + the Session Manager plugin on your **workstation**, to reach
-  `dev-public-01` initially over SSM (the same tools the bootstrap script
-  installs *on* the controller).
-- The S3 bucket + IAM permissions described in the box above, before running
-  any playbook that actually connects over `amazon.aws.aws_ssm`.
+- AWS CLI v2 configured with the `sarowar-ostad` profile wherever you'll run
+  `scripts/run-ansible.sh` (your workstation, CI, or `dev-public-01`) - it
+  only needs `ssm:SendCommand`, `ssm:GetCommandInvocation`,
+  `ssm:ListCommandInvocations`, `ec2:DescribeInstances`.
+- The private instances need outbound internet access (already provided by
+  the NAT Gateway) to fetch this repo from GitHub and `pip install ansible`.
 
 ## Initial setup
 
@@ -124,14 +146,63 @@ terraform plan
 terraform apply   # review the plan first - not run automatically by this repo
 ```
 
+## Full workflow
+
+```
+Terraform creates infrastructure
+        |
+Private EC2s come up, SSM-managed, outbound internet via NAT
+        |
+scripts/run-ansible.sh test        # Run Command smoke test
+        |
+scripts/run-ansible.sh utilities
+scripts/run-ansible.sh patch
+scripts/run-ansible.sh docker
+        |
+scripts/run-ansible.sh site
+```
+
+Each step: `scripts/run-ansible.sh <action>` calls `aws ssm send-command`
+with the `AWS-ApplyAnsiblePlaybooks` document, targeting the private
+instances by tag. That document downloads `ansible/` from this repo's
+`main` branch straight onto each target and runs
+`ansible-playbook -i "localhost," -c local playbooks/<action>.yml` **as
+root** (Run Command always runs as root on Linux) - no SSH, no connection
+plugin, no `become`.
+
+## Running playbooks
+
+```bash
+cd ansible-mastering-devops
+./scripts/run-ansible.sh test        # smoke test
+./scripts/run-ansible.sh utilities
+./scripts/run-ansible.sh patch
+./scripts/run-ansible.sh patch reboot_if_required=true   # extra vars: key=value ...
+./scripts/run-ansible.sh docker
+./scripts/run-ansible.sh site
+```
+
+This can be run from your workstation, CI, or `dev-public-01` - anywhere
+with the `sarowar-ostad` AWS CLI profile. Output (stdout/stderr per
+instance) is printed after each run completes; `aws ssm list-commands` /
+the Systems Manager console (Run Command history) also show full history.
+
+## Legacy: connection-plugin path (optional)
+
+This repo originally drove Ansible from a dedicated controller EC2
+(`dev-public-01`) using the `amazon.aws.aws_ssm` **connection plugin**
+(controller -> target, over an interactive SSM session). That path is kept
+only for the read-only `test-ssm.yml` smoke test - it **cannot** run
+`patch.yml`/`utilities.yml`/`docker.yml`/`site.yml` because the plugin does
+not support `become`/sudo at all (see the box at the top). If you want to
+use it anyway:
+
 Get the public instance ID and connect to it over SSM (no SSH key needed):
 
 ```powershell
 terraform output public_instance_id
 aws ssm start-session --target <instance-id> --profile sarowar-ostad --region ap-south-1
 ```
-
-## Bootstrapping the Ansible controller
 
 Once connected to `dev-public-01` via SSM Session Manager:
 
@@ -151,44 +222,7 @@ the Session Manager plugin, Ansible (`ansible-core` in `/opt/ansible-venv`,
 symlinked onto `PATH`), and the `amazon.aws` collection - all using the EC2
 IAM instance profile for AWS auth (no static keys are ever written).
 
-## Full workflow
-
-```
-Terraform creates infrastructure
-        |
-EC2 public server starts
-        |
-Connect to public EC2 using SSM
-        |
-Install Git, clone this repo
-        |
-Run scripts/bootstrap-ansible-controller.sh
-        |
-(installs AWS CLI, Session Manager plugin, Ansible, amazon.aws collection)
-        |
-scripts/verify-ansible-controller.sh
-        |
-scripts/run-ansible.sh test        # dynamic inventory + SSM connectivity
-        |
-scripts/run-ansible.sh utilities
-scripts/run-ansible.sh patch
-scripts/run-ansible.sh docker
-        |
-scripts/run-ansible.sh site
-```
-
-## Running playbooks
-
-```bash
-cd ansible-mastering-devops
-./scripts/run-ansible.sh test        # must succeed before anything else
-./scripts/run-ansible.sh utilities
-./scripts/run-ansible.sh patch
-./scripts/run-ansible.sh docker
-./scripts/run-ansible.sh site
-```
-
-Or drive Ansible directly from `ansible/`:
+Drive Ansible directly from `ansible/` (connection-plugin path):
 
 ```bash
 cd ansible
@@ -209,42 +243,63 @@ ansible-playbook -i inventories/aws_ec2.yml playbooks/patch.yml -e reboot_if_req
   `ssm:StartSession`** - the `SSM` role is missing the SSM control-plane
   permissions. See [Required IAM permissions](#required-iam-permissions-for-ansible-ssm).
 - **`Failed to get bucket region: ... (404) ... HeadBucket ... Not Found`**
-  when running `test-ssm.yml` - `ansible_aws_ssm_bucket_name` in
-  `ansible/group_vars/private_servers.yml` is still the `CHANGE-ME-...`
-  placeholder, or the bucket doesn't exist/isn't permitted yet. See the
-  ACTION REQUIRED box at the top.
+  when running the legacy `test-ssm.yml` over the connection plugin -
+  `ansible_aws_ssm_bucket_name` in `ansible/group_vars/private_servers.yml`
+  is still the `CHANGE-ME-...` placeholder, or the bucket doesn't
+  exist/isn't permitted yet. See the IAM box at the top.
+- **Run Command invocation status `TimedOut`** - the target is likely still
+  running `pip3 install ansible --upgrade` (`InstallDependencies: True`
+  in `scripts/run-ansible.sh`); this can take a while on a `t3.micro`. Check
+  `aws ssm get-command-invocation` output, or increase `TimeoutSeconds` in
+  the `--parameters` payload built by the script.
+- **`invalid uid and gid`** - this is the SSM Agent hard-rejecting a Session
+  Manager "Run As" document with `runAsDefaultUser: root` (UID 0). This
+  repo doesn't use that approach for exactly this reason (see the box at
+  the top) - if you see this, something is still referencing the old,
+  abandoned `ansible_aws_ssm_document` setting.
 - **A config/script edit made with `sed`/manual patching on the controller
   doesn't seem to apply** - check for CRLF line endings
   (`cat -A file | head`, look for `^M` at line ends). This repo enforces LF
   via `.gitattributes`; if you're on an older clone made before that was
   added, `git pull` and re-clone/`git checkout -- .` to get clean LF files.
 
-## How Ansible connects to the private servers
+## How Ansible reaches the private servers
 
-- **Dynamic inventory** (`ansible/inventories/aws_ec2.yml`, `amazon.aws.aws_ec2`
-  plugin) discovers running instances tagged
+- **Primary path (patch/utilities/docker/site):** `scripts/run-ansible.sh`
+  resolves the running `dev-private-*` instance IDs via `aws ec2
+  describe-instances` (tags `Project`/`Environment`/`Role=private`), then
+  calls `aws ssm send-command` with the `AWS-ApplyAnsiblePlaybooks`
+  document. That document downloads `ansible/` from this repo's `main`
+  branch onto each target and runs the requested playbook **locally, as
+  root**, via `ansible-playbook -i "localhost," -c local`. No connection
+  plugin, no `become`, no SSH keys, no inbound rules, no public IPs.
+- **Legacy path (`test-ssm.yml` only):** `ansible/inventories/aws_ec2.yml`
+  (`amazon.aws.aws_ec2` dynamic inventory) discovers instances tagged
   `Project=terraform-aws-infrastructure`, `Environment=dev` and groups them
   by the Terraform `Role` tag: `Role=private` → group `private_servers`,
-  `Role=public` → group `controller`. Hostnames come from the `Name` tag
-  (`dev-private-01`, `dev-private-02`), never from IPs.
-- **Connection**: `ansible_connection: amazon.aws.aws_ssm` (set in
-  `ansible/group_vars/private_servers.yml`), which uses
-  `ansible_aws_ssm_instance_id` (composed per-host by the inventory plugin
-  from the real EC2 instance ID - an IP address is not sufficient for this
-  plugin) plus `ansible_aws_ssm_region` and `ansible_aws_ssm_bucket_name`.
-- **`private_servers` never includes `dev-public-01`** - the controller
-  itself is placed in a separate `controller` group and is not a target of
-  `patch.yml`/`utilities.yml`/`docker.yml`/`site.yml`.
-- No SSH keys, no inbound security group rule, no public IPs on the private
-  instances are required at any point.
+  `Role=public` → group `controller`. Connection is
+  `ansible_connection: amazon.aws.aws_ssm` (set in
+  `ansible/group_vars/private_servers.yml`), using
+  `ansible_aws_ssm_instance_id` (composed per-host by the inventory plugin)
+  plus `ansible_aws_ssm_region` and `ansible_aws_ssm_bucket_name`. This path
+  cannot run `become` (see the box at the top) so it's only used for the
+  read-only smoke test, run from `dev-public-01`.
 
-## Required IAM permissions for Ansible SSM
+## Required IAM permissions
 
-The `amazon.aws.aws_ssm` connection plugin needs two things the `SSM` role
-doesn't currently have: S3 access for module transfer, and SSM control-plane
-permissions to manage other instances (confirmed missing via live testing -
-`AmazonSSMManagedInstanceCore` alone only lets an instance be managed, not
-manage others). Attach a policy like this, scoped to your chosen bucket
+**For the primary Run Command path**, whoever runs `scripts/run-ansible.sh`
+(your own IAM identity/profile, e.g. `sarowar-ostad`) needs:
+`ssm:SendCommand`, `ssm:GetCommandInvocation`, `ssm:ListCommandInvocations`,
+`ssm:ListCommands`, `ec2:DescribeInstances`. No new instance-role
+permissions are required - `AWS-ApplyAnsiblePlaybooks` only needs outbound
+internet (already provided by the NAT Gateway) to reach GitHub and PyPI.
+
+**For the legacy connection-plugin path** (`test-ssm.yml` only), the
+`amazon.aws.aws_ssm` connection plugin needs two things the `SSM` instance
+role doesn't have by default: S3 access for module transfer, and SSM
+control-plane permissions to manage other instances
+(`AmazonSSMManagedInstanceCore` alone only lets an instance *be managed*,
+not manage others). Attach a policy like this, scoped to your chosen bucket
 (replace `YOUR-BUCKET`):
 
 ```json
@@ -282,7 +337,7 @@ manage others). Attach a policy like this, scoped to your chosen bucket
 ```
 
 This repository does **not** create the bucket or attach this policy - see
-the ACTION REQUIRED box at the top. Set the bucket name in
+the IAM box at the top. Set the bucket name in
 `ansible/group_vars/private_servers.yml` (`ansible_aws_ssm_bucket_name`)
 once it exists and is permitted.
 
@@ -311,21 +366,15 @@ Additive changes only (nothing existing changed/removed - confirmed with
 - Added `private_instance_names` output (Name tag of each private instance,
   in the same order as `private_instance_ids`/`private_instance_private_ips`),
   in both the root module and `environments/dev`.
-- Added an `aws_ssm_document.ansible_run_as_root` resource (a custom SSM
-  Session document with Session Manager's native "Run As" enabled,
-  `runAsDefaultUser = "root"`), plus an `ansible_ssm_document_name` output,
-  in both the root module and `environments/dev`. **Why:** the
-  `amazon.aws.aws_ssm` Ansible connection plugin does not implement
-  `become`/sudo at all (confirmed upstream limitation -
-  [ansible-collections/amazon.aws#2640](https://github.com/ansible-collections/amazon.aws/issues/2640)) -
-  any play with `become: true` hangs until the connection times out,
-  regardless of sudoers config. Referencing this document via
-  `ansible_aws_ssm_document` (see `ansible/group_vars/private_servers.yml`)
-  makes the whole SSM session run as root instead, so playbooks no longer
-  use `become` anywhere.
-  **You must run `terraform apply`** for this new document to exist before
-  `become`-free playbooks (`utilities.yml`, `patch.yml`, `docker.yml`,
-  `site.yml`) will work.
+
+**Abandoned attempt (reverted, for context):** an `aws_ssm_document`
+resource with Session Manager's "Run As" (`runAsDefaultUser = "root"`) was
+briefly added to try to make the `amazon.aws.aws_ssm` connection plugin work
+without `become`. It was reverted after live testing showed the SSM Agent
+hard-rejects `runAsDefaultUser: root` (`invalid uid and gid` - Run As only
+supports non-root OS users). The Run Command approach used instead needs no
+Terraform changes at all - `AWS-ApplyAnsiblePlaybooks` is an AWS-owned
+document and command execution already runs as root by default.
 
 Nothing else in `terraform-aws-vpc-ec2/` was modified. See
 [terraform-aws-vpc-ec2/README.md](terraform-aws-vpc-ec2/README.md) for full

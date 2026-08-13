@@ -5,12 +5,16 @@
 ansible_connection: amazon.aws.aws_ssm
 ansible_aws_ssm_region: "{{ aws_region }}"
 
-# Runs the SSM session as root via Session Manager's native "Run As" support
-# (Terraform resource aws_ssm_document.ansible_run_as_root). Required because
-# the amazon.aws.aws_ssm connection plugin does not implement `become`/sudo -
-# playbooks must NOT set become: true (it hangs indefinitely - see
-# ansible-collections/amazon.aws#2640 - regardless of sudoers config).
-ansible_aws_ssm_document: "{{ project_name }}-{{ environment_name }}-ansible-run-as-root"
+# NOTE: this connection is only used by playbooks/test-ssm.yml (a read-only
+# smoke test). It CANNOT run become/sudo - the amazon.aws.aws_ssm connection
+# plugin does not implement become at all (open upstream issue:
+# ansible-collections/amazon.aws#2640), and Session Manager's "Run As"
+# feature cannot substitute for it either (the SSM Agent hard-rejects
+# runAsDefaultUser: root - "invalid uid and gid"). Privileged playbooks
+# (utilities/patch/docker/site) run instead via AWS Systems Manager Run
+# Command (AWS-ApplyAnsiblePlaybooks), which executes locally as root on
+# each target with no connection plugin and no become - see
+# scripts/run-ansible.sh and README.md.
 
 # REQUIRED, and deliberately a placeholder: name of an S3 bucket that the
 # controller's IAM role can read/write, used by the aws_ssm connection

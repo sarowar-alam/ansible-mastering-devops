@@ -5,11 +5,15 @@
 #   ansible-playbook playbooks/site.yml --tags patch
 #   ansible-playbook playbooks/site.yml --tags utilities
 #   ansible-playbook playbooks/site.yml --tags docker
+#
+# Runs via AWS Systems Manager Run Command (AWS-ApplyAnsiblePlaybooks), which
+# executes `ansible-playbook -i "localhost," -c local` AS ROOT directly on
+# the target - no connection plugin, no become needed. See
+# scripts/run-ansible.sh and README.md "How playbooks run".
 - name: Configure private servers (patch, utilities, docker)
-  hosts: private_servers
+  hosts: all
   vars_files:
     - ../group_vars/all.yml
-    - ../group_vars/private_servers.yml
 
   roles:
     - role: patch
@@ -20,10 +24,9 @@
       tags: [docker]
 
 - name: Verify final state of private servers
-  hosts: private_servers
+  hosts: all
   vars_files:
     - ../group_vars/all.yml
-    - ../group_vars/private_servers.yml
   tags: [verify]
 
   tasks:
