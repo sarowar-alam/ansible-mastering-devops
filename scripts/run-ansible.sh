@@ -51,7 +51,12 @@ AWS_ARGS=(--region "$AWS_REGION" "${AWS_PROFILE_ARGS[@]}")
 
 ACTION="${1:-}"
 shift || true
-EXTRA_VARS="SSM=True $*"
+# No trailing space: ExtraVariables' allowedPattern rejects it (^\w+=... with
+# no trailing whitespace allowed), which "SSM=True $*" produces when $* is empty.
+EXTRA_VARS="SSM=True"
+if [[ $# -gt 0 ]]; then
+  EXTRA_VARS="$EXTRA_VARS $*"
+fi
 
 declare -A PLAYBOOKS=(
   [test]="playbooks/test-ssm.yml"
