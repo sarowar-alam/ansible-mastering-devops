@@ -16,3 +16,4 @@ Thumbs.db
 
 # Note: terraform-aws-vpc-ec2/ has its own .gitignore for Terraform-specific
 # ignores (.terraform/, *.tfstate, real *.tfvars, etc.) - not duplicated here.
+terraform-aws-vpc-ec2/environments/dev/.terraform.lock.hcl

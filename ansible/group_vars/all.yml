@@ -1,8 +1,9 @@
----
-# Common variables for the whole Ansible environment. Loaded explicitly via
-# vars_files in the playbooks (see playbooks/*.yml for why).
-project_name: terraform-aws-infrastructure
-environment_name: dev
-aws_region: ap-south-1
-
+# Connect to every host purely via AWS Systems Manager Session Manager -
+# no SSH keys, no inbound security-group rules required.
+# ansible_aws_ssm_bucket_name must be created first by
+# scripts/prepare-aws-prereqs.sh (the plugin requires an S3 bucket even for
+# shell/command modules - it ships the module code itself via S3).
+ansible_connection: amazon.aws.aws_ssm
+ansible_aws_ssm_region: ap-south-1
+ansible_aws_ssm_bucket_name: CHANGE_ME_ansible_ssm_transfer_bucket
 ansible_python_interpreter: /usr/bin/python3
