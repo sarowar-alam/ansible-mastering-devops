@@ -26,7 +26,7 @@
 - name: Add the Docker apt repository
   ansible.builtin.apt_repository:
     repo: >-
-      deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}
+      deb [arch={{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' }}
       signed-by=/etc/apt/keyrings/docker.asc]
       https://download.docker.com/linux/ubuntu {{ docker_apt_suite }} stable
     filename: docker

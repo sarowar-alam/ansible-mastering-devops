@@ -3,7 +3,7 @@
 # running host's own release codename (e.g. "resolute" for Ubuntu 26.04).
 # Override (e.g. docker_apt_suite: noble) if Docker's repo does not yet
 # publish packages for a brand-new Ubuntu release.
-docker_apt_suite: "{{ ansible_distribution_release }}"
+docker_apt_suite: "{{ ansible_facts['distribution_release'] }}"
 
 docker_packages:
   - docker-ce
