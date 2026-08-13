@@ -55,7 +55,7 @@ All three EC2 instances share one security group and use the same
 ## 3. AWS CLI profile configuration
 
 This repo is wired to use the named profile `sarowar-ostad` and region
-`us-west-2` by default (both are configurable variables). Verify the profile
+`ap-south-1` by default (both are configurable variables). Verify the profile
 works before running Terraform:
 
 ```powershell
@@ -103,7 +103,7 @@ backend/state per directory, or you'll create duplicate resources.
 
 | Variable | Default | Description |
 |---|---|---|
-| `aws_region` | `us-west-2` | AWS region |
+| `aws_region` | `ap-south-1` | AWS region |
 | `aws_profile` | `sarowar-ostad` | Named AWS CLI profile |
 | `environment` | `dev` | Environment name (naming/tagging) |
 | `project_name` | `terraform-aws-infrastructure` | Project name (naming/tagging) |
@@ -143,7 +143,7 @@ terraform plan -var-file="terraform.tfvars"
 ```
 
 (If you didn't create `terraform.tfvars`, `terraform plan` still works using
-the built-in defaults, which already match `sarowar-ostad` / `us-west-2`.)
+the built-in defaults, which already match `sarowar-ostad` / `ap-south-1`.)
 
 ## 10. Apply
 
@@ -240,10 +240,10 @@ for the AWS CLI is installed, then:
 
 ```powershell
 # List managed instances (should show all 3 once SSM Agent has checked in)
-aws ssm describe-instance-information --profile sarowar-ostad --region us-west-2
+aws ssm describe-instance-information --profile sarowar-ostad --region ap-south-1
 
 # Start an interactive shell session
-aws ssm start-session --target <instance-id> --profile sarowar-ostad --region us-west-2
+aws ssm start-session --target <instance-id> --profile sarowar-ostad --region ap-south-1
 ```
 
 Get instance IDs from the Terraform outputs:

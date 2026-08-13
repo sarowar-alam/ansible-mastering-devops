@@ -128,7 +128,7 @@ Get the public instance ID and connect to it over SSM (no SSH key needed):
 
 ```powershell
 terraform output public_instance_id
-aws ssm start-session --target <instance-id> --profile sarowar-ostad --region us-west-2
+aws ssm start-session --target <instance-id> --profile sarowar-ostad --region ap-south-1
 ```
 
 ## Bootstrapping the Ansible controller

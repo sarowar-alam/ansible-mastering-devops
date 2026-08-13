@@ -3,6 +3,6 @@
 # vars_files in the playbooks (see playbooks/*.yml for why).
 project_name: terraform-aws-infrastructure
 environment_name: dev
-aws_region: us-west-2
+aws_region: ap-south-1
 
 ansible_python_interpreter: /usr/bin/python3

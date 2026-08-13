@@ -2,7 +2,7 @@
 # terraform.tfvars is git-ignored and must never contain secrets - none of
 # these values are secrets, but keep this file yours locally regardless.
 
-aws_region  = "us-west-2"
+aws_region  = "ap-south-1"
 aws_profile = "sarowar-ostad"
 
 environment  = "dev"

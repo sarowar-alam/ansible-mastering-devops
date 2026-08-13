@@ -1,5 +1,5 @@
 # Copy this file to terraform.tfvars in this directory and adjust as needed.
-aws_region  = "us-west-2"
+aws_region  = "ap-south-1"
 aws_profile = "sarowar-ostad"
 
 environment  = "dev"
