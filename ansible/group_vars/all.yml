@@ -5,5 +5,5 @@
 # shell/command modules - it ships the module code itself via S3).
 ansible_connection: amazon.aws.aws_ssm
 ansible_aws_ssm_region: ap-south-1
-ansible_aws_ssm_bucket_name: CHANGE_ME_ansible_ssm_transfer_bucket
+ansible_aws_ssm_bucket_name: ansible-ssm-transfer-388779989543-ap-south-1
 ansible_python_interpreter: /usr/bin/python3
