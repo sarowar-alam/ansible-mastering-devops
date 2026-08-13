@@ -25,9 +25,11 @@ hostnames:
 # Explicit, readable groups built from the Terraform "Role" tag. The
 # controller (Role=public) is intentionally kept OUT of private_servers so
 # the patch/utilities/docker/site playbooks never accidentally target it.
+# Uses ec2_tags (not the deprecated 'tags' host variable, which collides
+# with Ansible's reserved 'tags' keyword and is removed after 2026-12-01).
 groups:
-  private_servers: "tags.Role is defined and tags.Role == 'private'"
-  controller: "tags.Role is defined and tags.Role == 'public'"
+  private_servers: "ec2_tags.Role is defined and ec2_tags.Role == 'private'"
+  controller: "ec2_tags.Role is defined and ec2_tags.Role == 'public'"
 
 # Per-host fact required by amazon.aws.aws_ssm (the plugin connects by
 # instance ID, a private IP is not sufficient). The rest of the SSM
