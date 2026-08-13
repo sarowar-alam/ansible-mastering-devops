@@ -8,7 +8,14 @@ ok()   { echo "  OK   $*"; }
 bad()  { echo "  FAIL $*" >&2; ERRORS=$((ERRORS + 1)); }
 
 ERRORS=0
-AWS_REGION="${AWS_REGION:-us-west-2}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Single source of truth is ansible/group_vars/all.yml - never hard-code a region here.
+AWS_REGION="${AWS_REGION:-$(grep -m1 '^aws_region:' "$REPO_ROOT/ansible/group_vars/all.yml" | awk '{print $2}')}"
+if [ -z "$AWS_REGION" ]; then
+  bad "Could not determine AWS_REGION (set the env var or check ansible/group_vars/all.yml)"
+  exit 1
+fi
 
 check_cmd() {
   local cmd="$1"
@@ -46,8 +53,13 @@ fi
 
 log "Checking SSM-managed instances in $AWS_REGION..."
 if SSM_INSTANCES="$(aws ssm describe-instance-information --region "$AWS_REGION" --output table 2>&1)"; then
-  ok "aws ssm describe-instance-information succeeded"
-  echo "$SSM_INSTANCES"
+  if echo "$SSM_INSTANCES" | grep -q '"InstanceId"\|i-[0-9a-f]\{8,\}'; then
+    ok "aws ssm describe-instance-information succeeded"
+    echo "$SSM_INSTANCES"
+  else
+    bad "aws ssm describe-instance-information returned no instances in $AWS_REGION - check the region is correct"
+    echo "$SSM_INSTANCES"
+  fi
 else
   bad "aws ssm describe-instance-information failed: $SSM_INSTANCES"
 fi
