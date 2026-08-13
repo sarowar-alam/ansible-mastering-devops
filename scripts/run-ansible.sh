@@ -42,6 +42,11 @@ ENVIRONMENT_NAME="${ENVIRONMENT_NAME:-$(grep -m1 '^environment_name:' "$REPO_ROO
 GITHUB_OWNER="${GITHUB_OWNER:-sarowar-alam}"
 GITHUB_REPO="${GITHUB_REPO:-ansible-mastering-devops}"
 GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
+# Optional: name of an SSM SecureString parameter holding a GitHub token.
+# Without it, aws:downloadContent hits GitHub's unauthenticated API limit
+# (60 req/hour/IP - easily exceeded by this repo's roles/*/tasks tree,
+# shared across both instances via the same NAT gateway IP).
+GITHUB_TOKEN_PARAM="${GITHUB_TOKEN_PARAM:-}"
 
 AWS_PROFILE_ARGS=()
 if [[ -n "${AWS_PROFILE:-}" ]]; then
@@ -87,13 +92,18 @@ if [[ -z "$INSTANCE_IDS" ]]; then
 fi
 log "Targets: $INSTANCE_IDS"
 
+TOKEN_INFO_JSON=""
+if [[ -n "$GITHUB_TOKEN_PARAM" ]]; then
+  TOKEN_INFO_JSON=",\"tokenInfo\":\"{{ssm-secure:$GITHUB_TOKEN_PARAM}}\""
+fi
+
 # Passed inline (not via file://) - on Git Bash, a mktemp path like /tmp/xxx
 # is an MSYS-only path that the native aws.exe cannot resolve, so a file://
 # reference to it fails with "No such file or directory".
 PARAMS_JSON=$(cat <<EOF
 {
   "SourceType": ["GitHub"],
-  "SourceInfo": ["{\"owner\":\"$GITHUB_OWNER\",\"repository\":\"$GITHUB_REPO\",\"path\":\"ansible\",\"getOptions\":\"branch:$GITHUB_BRANCH\"}"],
+  "SourceInfo": ["{\"owner\":\"$GITHUB_OWNER\",\"repository\":\"$GITHUB_REPO\",\"path\":\"ansible\",\"getOptions\":\"branch:$GITHUB_BRANCH\"$TOKEN_INFO_JSON}"],
   "InstallDependencies": ["True"],
   "PlaybookFile": ["${PLAYBOOKS[$ACTION]}"],
   "ExtraVariables": ["$EXTRA_VARS"],
@@ -117,14 +127,15 @@ OVERALL_STATUS=0
 for id in $INSTANCE_IDS; do
   aws ssm wait command-executed "${AWS_ARGS[@]}" --command-id "$COMMAND_ID" --instance-id "$id" 2>/dev/null || true
 
-  INVOCATION="$(aws ssm get-command-invocation "${AWS_ARGS[@]}" --command-id "$COMMAND_ID" --instance-id "$id")"
-  STATUS="$(echo "$INVOCATION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["Status"])' 2>/dev/null || echo "Unknown")"
+  # Use --query instead of python3 - python3 isn't guaranteed to be on PATH
+  # in every shell this script might run from (e.g. plain Git Bash).
+  STATUS="$(aws ssm get-command-invocation "${AWS_ARGS[@]}" --command-id "$COMMAND_ID" --instance-id "$id" --query 'Status' --output text 2>/dev/null || echo "Unknown")"
 
   echo "----- $id: $STATUS -----"
-  echo "$INVOCATION" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("StandardOutputContent",""))' 2>/dev/null || echo "$INVOCATION"
+  aws ssm get-command-invocation "${AWS_ARGS[@]}" --command-id "$COMMAND_ID" --instance-id "$id" --query 'StandardOutputContent' --output text
   if [[ "$STATUS" != "Success" ]]; then
     echo "----- $id: stderr -----" >&2
-    echo "$INVOCATION" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("StandardErrorContent",""))' 2>/dev/null >&2 || true
+    aws ssm get-command-invocation "${AWS_ARGS[@]}" --command-id "$COMMAND_ID" --instance-id "$id" --query 'StandardErrorContent' --output text >&2
     OVERALL_STATUS=1
   fi
 done

@@ -28,6 +28,15 @@ entirely through **AWS Systems Manager (SSM)** - no SSH keys, no bastion.
 > optional read-only smoke test (`scripts/run-ansible.sh test` /
 > `playbooks/test-ssm.yml`) - see [Legacy: connection-plugin path](#legacy-connection-plugin-path-optional)
 > below.
+>
+> **GitHub API rate limit:** `aws:downloadContent` fetches this repo via
+> GitHub's unauthenticated Contents API (60 requests/hour **per IP**, shared
+> by both private instances behind the same NAT gateway IP) - this repo's
+> `ansible/roles/*/tasks` tree alone is enough to exceed that after a couple
+> of runs, failing with `403 API rate limit exceeded`. Fix: create a GitHub
+> token and store it as an SSM SecureString parameter, then set
+> `GITHUB_TOKEN_PARAM` when running the script - see
+> [GitHub rate limit / token setup](#github-rate-limit--token-setup) below.
 
 > ## ⚠ Optional: IAM required for the legacy connection-plugin smoke test
 > The existing `SSM` IAM role/instance profile (used by all 3 EC2 instances)
@@ -186,6 +195,41 @@ This can be run from your workstation, CI, or `dev-public-01` - anywhere
 with the `sarowar-ostad` AWS CLI profile. Output (stdout/stderr per
 instance) is printed after each run completes; `aws ssm list-commands` /
 the Systems Manager console (Run Command history) also show full history.
+
+## GitHub rate limit / token setup
+
+`AWS-ApplyAnsiblePlaybooks`'s `aws:downloadContent` step fetches this repo
+file-by-file via GitHub's Contents API. Unauthenticated requests are capped
+at 60/hour **per source IP**, and both private instances share one IP (the
+NAT gateway's) - this repo's `ansible/roles/*/tasks` tree is enough to blow
+through that in one or two runs, failing with:
+
+```
+GET https://api.github.com/repos/.../contents/... : 403 API rate limit exceeded for <ip>.
+```
+
+Fix: create a GitHub token (classic PAT with no scopes is enough for a
+public repo) and store it as an SSM SecureString parameter - never commit
+it or paste it into chat:
+
+```bash
+aws ssm put-parameter \
+  --name ansible-github-token --type SecureString \
+  --value "<paste your GitHub token here>" \
+  --profile sarowar-ostad --region ap-south-1
+```
+
+Then pass the parameter name when running playbooks:
+
+```bash
+export GITHUB_TOKEN_PARAM=ansible-github-token
+./scripts/run-ansible.sh test
+```
+
+This raises the limit to 5,000/hour (authenticated). Requires the identity
+running `scripts/run-ansible.sh` to have `ssm:GetParameters` (and
+`kms:Decrypt` if the parameter uses a customer-managed KMS key - the
+default `aws/ssm` key doesn't need an extra grant for the parameter owner).
 
 ## Legacy: connection-plugin path (optional)
 
